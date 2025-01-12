@@ -3,7 +3,7 @@ name: Go CI/CD
 on:
   push:
     tags:
-      - 'v*.*.*' # Yalnızca semantik versiyonlama etiketi olduğunda çalışır
+      - 'v*.*.*'
 
 jobs:
   build:
