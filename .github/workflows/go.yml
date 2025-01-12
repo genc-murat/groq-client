@@ -1,13 +1,18 @@
-name: Go CI/CD
+name: Go Package CI
 
 on:
   push:
-    tags:
-      - 'v*.*.*' # Sadece etiketlerde çalışır
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  build:
+  test:
+    name: Test Package
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -17,14 +22,15 @@ jobs:
         with:
           go-version: 1.23
 
-      - name: Build binary
-        run: go build -o dist/groq-client
+      - name: Install Dependencies
+        run: go mod tidy
 
       - name: Run Tests
-        run: go test ./...
+        run: go test ./... -v
 
   release:
-    needs: build
+    name: Publish New Version
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -32,8 +38,5 @@ jobs:
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            dist/groq-client
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
