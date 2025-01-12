@@ -1,37 +1,15 @@
-name: Go Package CI
+name: Go Package Release
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+    tags:
+      - 'v*.*.*'
 
 jobs:
-  test:
-    name: Test Package
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: 1.23
-
-      - name: Install Dependencies
-        run: go mod tidy
-
-      - name: Run Tests
-        run: go test ./... -v
-
   release:
-    name: Publish New Version
-    needs: test
+    name: Publish Release
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
