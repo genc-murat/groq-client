@@ -376,6 +376,24 @@ func isRetryableStatusCode(statusCode int) bool {
 	}
 }
 
+// DoMultipartForm performs an HTTP request with multipart form data.
+// It handles file uploads and form fields, applying rate limiting and retries.
+//
+// Parameters:
+//   - ctx: Context for request cancellation and timeouts
+//   - method: HTTP method to use (e.g., "POST", "PUT")
+//   - url: Target URL for the request
+//   - form: Map containing form fields and file data. Special keys:
+//   - "file": Must be an io.Reader containing file data
+//   - "filename": String specifying the name for the uploaded file
+//   - respBody: Pointer to struct where JSON response will be unmarshaled (can be nil)
+//
+// Returns:
+//   - error: nil if successful, otherwise:
+//   - ErrRateLimitExceeded if rate limit is hit
+//   - ErrRequestFailed for HTTP status >= 400
+//   - ErrResponseParsing for JSON unmarshaling errors
+//   - Other errors for form creation/writing failures
 func (c *HTTPClient) DoMultipartForm(ctx context.Context, method, url string, form map[string]interface{}, respBody interface{}) error {
 	if err := c.rateLimit.Wait(ctx); err != nil {
 		return fmt.Errorf("%w: %v", ErrRateLimitExceeded, err)

@@ -228,6 +228,25 @@ func (c *Client) CreateChatCompletionStream(ctx context.Context, req *ChatComple
 	}
 }
 
+// CreateTranscription sends an audio file to be transcribed into text using the specified model.
+// If no model is specified, it defaults to Whisper Large v3.
+//
+// The audio file must be in one of the supported formats: flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, or webm.
+//
+// Parameters:
+//   - ctx: The context for the request
+//   - req: TranscriptionRequest containing:
+//   - File: The audio file to transcribe
+//   - FileName: Name of the audio file with extension
+//   - Model: (Optional) The model to use for transcription
+//   - Language: (Optional) The language of the audio
+//   - Prompt: (Optional) Text to guide the model's transcription
+//   - ResponseFormat: (Optional) The format of the transcription response
+//   - Temperature: (Optional) Sampling temperature for the model
+//
+// Returns:
+//   - *TranscriptionResponse: Contains the transcribed text and other response data
+//   - error: Any error that occurred during the request
 func (c *Client) CreateTranscription(ctx context.Context, req *TranscriptionRequest) (*TranscriptionResponse, error) {
 	if req.Model == "" {
 		req.Model = ModelWhisperLargeV3
@@ -272,12 +291,33 @@ func (c *Client) CreateTranscription(ctx context.Context, req *TranscriptionRequ
 	return &result, nil
 }
 
+// CreateTranslation sends an audio file to be translated into English.
+// It accepts a TranslationRequest containing the audio file and optional parameters,
+// and returns a TranslationResponse with the translated text.
+//
+// The audio file must be in one of the supported formats:
+// flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, webm
+//
+// If no model is specified in the request, it defaults to ModelWhisperLargeV3.
+//
+// Parameters:
+//   - ctx: Context for the request
+//   - req: TranslationRequest containing:
+//   - File: The audio file to translate
+//   - FileName: Name of the audio file including extension
+//   - Model: (Optional) The model to use for translation
+//   - Prompt: (Optional) Text to guide the model's style or continue a previous audio segment
+//   - ResponseFormat: (Optional) The format of the translation response
+//   - Temperature: (Optional) Sampling temperature between 0 and 1
+//
+// Returns:
+//   - *TranslationResponse: Contains the translated text and other response data
+//   - error: Any error encountered during the translation request
 func (c *Client) CreateTranslation(ctx context.Context, req *TranslationRequest) (*TranslationResponse, error) {
 	if req.Model == "" {
 		req.Model = ModelWhisperLargeV3
 	}
 
-	// Dosya formatını kontrol et
 	ext := filepath.Ext(req.FileName)
 	if !isValidAudioFormat(ext) {
 		return nil, fmt.Errorf("invalid audio format: %s. Supported formats: flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, webm", ext)
@@ -314,6 +354,9 @@ func (c *Client) CreateTranslation(ctx context.Context, req *TranslationRequest)
 	return &result, nil
 }
 
+// isValidAudioFormat checks if the provided file extension is a supported audio format.
+// Returns true if the extension is one of: .flac, .mp3, .mp4, .mpeg, .mpga, .m4a, .ogg, .wav, .webm.
+// The extension should include the dot prefix (e.g. ".mp3").
 func isValidAudioFormat(ext string) bool {
 	validFormats := map[string]bool{
 		".flac": true,
