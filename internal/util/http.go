@@ -1,10 +1,14 @@
 package util
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"math/rand"
+	"mime/multipart"
 	"sync"
 	"time"
 
@@ -370,4 +374,91 @@ func isRetryableStatusCode(statusCode int) bool {
 	default:
 		return false
 	}
+}
+
+func (c *HTTPClient) DoMultipartForm(ctx context.Context, method, url string, form map[string]interface{}, respBody interface{}) error {
+	if err := c.rateLimit.Wait(ctx); err != nil {
+		return fmt.Errorf("%w: %v", ErrRateLimitExceeded, err)
+	}
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+
+	for key, value := range form {
+		if key == "file" {
+			if reader, ok := value.(io.Reader); ok {
+				if fileName, ok := form["filename"].(string); ok {
+					part, err := writer.CreateFormFile("file", fileName)
+					if err != nil {
+						return fmt.Errorf("error creating form file: %w", err)
+					}
+					if _, err := io.Copy(part, reader); err != nil {
+						return fmt.Errorf("error copying file data: %w", err)
+					}
+				}
+			}
+		} else if key != "filename" {
+			switch v := value.(type) {
+			case []string:
+				for _, item := range v {
+					if err := writer.WriteField(key, item); err != nil {
+						return fmt.Errorf("error writing array field: %w", err)
+					}
+				}
+			default:
+				if err := writer.WriteField(key, fmt.Sprintf("%v", v)); err != nil {
+					return fmt.Errorf("error writing field: %w", err)
+				}
+			}
+		}
+	}
+
+	if err := writer.Close(); err != nil {
+		return fmt.Errorf("error closing multipart writer: %w", err)
+	}
+
+	req := fasthttp.AcquireRequest()
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
+
+	req.SetRequestURI(url)
+	req.Header.SetMethod(method)
+	req.SetBody(buf.Bytes())
+	req.Header.SetContentType(writer.FormDataContentType())
+
+	c.mu.RLock()
+	for k, v := range c.baseHeaders {
+		if k != "Content-Type" {
+			req.Header.Set(k, v)
+		}
+	}
+	c.mu.RUnlock()
+
+	err := c.doRequestWithRetry(ctx, req, resp)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode() >= 400 {
+		bodyStr := string(resp.Body())
+		return fmt.Errorf("%w: status code %d, body: %s", ErrRequestFailed, resp.StatusCode(), bodyStr)
+	}
+
+	if respBody != nil {
+		if err := json.Unmarshal(resp.Body(), respBody); err != nil {
+			return fmt.Errorf("%w: %v", ErrResponseParsing, err)
+		}
+	}
+
+	return nil
+}
+
+func generateBoundary() string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, 30)
+	for i := range b {
+		b[i] = charset[rand.Intn(len(charset))]
+	}
+	return string(b)
 }

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"path/filepath"
 	"time"
 
 	"github.com/genc-murat/groq-client/internal/util"
@@ -225,4 +226,105 @@ func (c *Client) CreateChatCompletionStream(ctx context.Context, req *ChatComple
 			return fmt.Errorf("stream handler error: %v", err)
 		}
 	}
+}
+
+func (c *Client) CreateTranscription(ctx context.Context, req *TranscriptionRequest) (*TranscriptionResponse, error) {
+	if req.Model == "" {
+		req.Model = ModelWhisperLargeV3
+	}
+
+	ext := filepath.Ext(req.FileName)
+	if !isValidAudioFormat(ext) {
+		return nil, fmt.Errorf("invalid audio format: %s. Supported formats: flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, webm", ext)
+	}
+
+	form := map[string]interface{}{
+		"file":     req.File,
+		"filename": req.FileName,
+		"model":    string(req.Model),
+	}
+
+	if req.Language != "" {
+		form["language"] = req.Language
+	}
+	if req.Prompt != "" {
+		form["prompt"] = req.Prompt
+	}
+	if req.ResponseFormat != "" {
+		form["response_format"] = req.ResponseFormat
+	}
+	if req.Temperature != 0 {
+		form["temperature"] = fmt.Sprintf("%.2f", req.Temperature)
+	}
+
+	var result TranscriptionResponse
+	err := c.httpClient.DoMultipartForm(
+		ctx,
+		"POST",
+		fmt.Sprintf("%s/audio/transcriptions", c.baseURL),
+		form,
+		&result,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("transcription request failed: %w", err)
+	}
+
+	return &result, nil
+}
+
+func (c *Client) CreateTranslation(ctx context.Context, req *TranslationRequest) (*TranslationResponse, error) {
+	if req.Model == "" {
+		req.Model = ModelWhisperLargeV3
+	}
+
+	// Dosya formatını kontrol et
+	ext := filepath.Ext(req.FileName)
+	if !isValidAudioFormat(ext) {
+		return nil, fmt.Errorf("invalid audio format: %s. Supported formats: flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, webm", ext)
+	}
+
+	form := map[string]interface{}{
+		"file":     req.File,
+		"filename": req.FileName,
+		"model":    string(req.Model),
+	}
+
+	if req.Prompt != "" {
+		form["prompt"] = req.Prompt
+	}
+	if req.ResponseFormat != "" {
+		form["response_format"] = req.ResponseFormat
+	}
+	if req.Temperature != 0 {
+		form["temperature"] = fmt.Sprintf("%.2f", req.Temperature)
+	}
+
+	var result TranslationResponse
+	err := c.httpClient.DoMultipartForm(
+		ctx,
+		"POST",
+		fmt.Sprintf("%s/audio/translations", c.baseURL),
+		form,
+		&result,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("translation request failed: %w", err)
+	}
+
+	return &result, nil
+}
+
+func isValidAudioFormat(ext string) bool {
+	validFormats := map[string]bool{
+		".flac": true,
+		".mp3":  true,
+		".mp4":  true,
+		".mpeg": true,
+		".mpga": true,
+		".m4a":  true,
+		".ogg":  true,
+		".wav":  true,
+		".webm": true,
+	}
+	return validFormats[ext]
 }
