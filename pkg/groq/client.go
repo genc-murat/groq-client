@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/genc-murat/groq-client/internal/util"
@@ -69,24 +70,51 @@ func NewClient(apiKey string, opts ...Option) *Client {
 	return c
 }
 
-// CreateChatCompletion sends a request to create a chat completion based on the provided request.
-// It validates the request, checks the cache for a previous response, and if not found, sends the request
-// to the server. The response is then cached if caching is enabled.
+// GetCacheKey returns a string that can be used as a cache key for the message content.
+// For string content, returns the string directly.
+// For multimodal content (array of ContentType), concatenates all text contents with spaces.
+// For other content types, returns the string representation of the content.
+func (m ChatMessage) GetCacheKey() string {
+	switch content := m.Content.(type) {
+	case string:
+		return content
+	case []ContentType:
+		// For vision/multimodal messages, concat text contents
+		var texts []string
+		for _, c := range content {
+			if c.Type == "text" {
+				texts = append(texts, c.Text)
+			}
+		}
+		return strings.Join(texts, " ")
+	default:
+		return fmt.Sprintf("%v", content)
+	}
+}
+
+// CreateChatCompletion sends a chat completion request to the Groq API.
+// It takes a context and a ChatCompletionRequest as input.
+// The function first validates the request, then checks if a cached response exists.
+// If no cache hit occurs, it makes an HTTP POST request to the chat completions endpoint.
+// The response is cached (if caching is enabled) before being returned.
 //
 // Parameters:
-//   - ctx: The context for the request, used for cancellation and timeouts.
-//   - req: The ChatCompletionRequest containing the details of the chat completion request.
+//   - ctx: Context for the request, used for timeouts and cancellation
+//   - req: Pointer to ChatCompletionRequest containing the chat messages and parameters
 //
 // Returns:
-//   - *ChatCompletionResponse: The response from the server containing the chat completion result.
-//   - error: An error if the request validation fails, the request to the server fails, or any other issue occurs.
+//   - *ChatCompletionResponse: Contains the API's response including generated message
+//   - error: Non-nil if request validation fails, API request fails, or other errors occur
 func (c *Client) CreateChatCompletion(ctx context.Context, req *ChatCompletionRequest) (*ChatCompletionResponse, error) {
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
 	}
 
+	lastMsg := req.Messages[len(req.Messages)-1]
+	cacheKey := lastMsg.GetCacheKey()
+
 	if c.cache != nil {
-		if resp, found := c.cache.Get(ctx, req.Messages[len(req.Messages)-1].Content); found {
+		if resp, found := c.cache.Get(ctx, cacheKey); found {
 			return resp, nil
 		}
 	}
@@ -109,7 +137,7 @@ func (c *Client) CreateChatCompletion(ctx context.Context, req *ChatCompletionRe
 	}
 
 	if c.cache != nil {
-		_ = c.cache.Set(ctx, req.Messages[len(req.Messages)-1].Content, &result)
+		_ = c.cache.Set(ctx, cacheKey, &result)
 	}
 
 	return &result, nil

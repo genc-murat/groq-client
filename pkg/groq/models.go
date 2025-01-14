@@ -27,16 +27,18 @@ const (
 )
 
 type ModelInfo struct {
-	ContextWindow int    // Maximum context window in tokens, 0 means unspecified
-	MaxOutput     int    // Maximum output tokens, 0 means unspecified
-	MaxFileSize   string // Maximum file size, empty means unspecified
-	IsPreview     bool   // Whether this is a preview model
-	Developer     string // Model developer/organization
+	ContextWindow int      // Maximum context window in tokens
+	MaxOutput     int      // Maximum output tokens
+	MaxFileSize   string   // Maximum file size
+	MaxImageSize  string   // Maximum image size for vision models
+	IsPreview     bool     // Whether this is a preview model
+	Developer     string   // Model developer/organization
+	Features      []string // Supported features: vision, tool-use, json-mode
 }
 
 type ChatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string      `json:"role"`
+	Content interface{} `json:"content"`
 }
 
 type ChatCompletionRequest struct {
@@ -215,10 +217,14 @@ var modelInfoMap = map[ModelType]ModelInfo{
 	},
 }
 
-// Validate checks the ChatCompletionRequest for validity.
-// It ensures that the model is valid, there is at least one message,
-// and the max_tokens value does not exceed the model's maximum output limit.
-// Returns an error if any of these conditions are not met.
+// Validate checks if the ChatCompletionRequest is well-formed and meets model requirements.
+// It verifies:
+// - The model is valid
+// - At least one message is present
+// - The max_tokens value doesn't exceed the model's maximum output limit
+// - Vision-related content is valid when present
+//
+// Returns an error if any validation check fails, nil otherwise.
 func (r *ChatCompletionRequest) Validate() error {
 	if !r.Model.IsValid() {
 		return fmt.Errorf("invalid model: %s", r.Model)
@@ -230,6 +236,16 @@ func (r *ChatCompletionRequest) Validate() error {
 	info := r.Model.GetInfo()
 	if info.MaxOutput > 0 && r.MaxTokens > info.MaxOutput {
 		return fmt.Errorf("max_tokens exceeds model limit of %d", info.MaxOutput)
+	}
+
+	// Check if request contains vision content
+	for _, msg := range r.Messages {
+		if _, ok := msg.Content.([]ContentType); ok {
+			if err := r.validateVision(); err != nil {
+				return err
+			}
+			break
+		}
 	}
 
 	return nil
