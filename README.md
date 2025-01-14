@@ -20,6 +20,9 @@ A high-performance Go client for the Groq API, featuring FastHTTP, semantic cach
 - 🎙️ Audio transcription and translation support
 - 🌐 Multi-language audio processing
 - 📝 Flexible response formats
+- 👁️ Vision and multimodal support
+- 🖼️ Image analysis and understanding
+- 🔍 Visual question answering
 
 ## Installation
 
@@ -216,6 +219,144 @@ fmt.Printf("English Translation: %s\n", resp.Text)
 - webm
 - ogg
 - flac
+
+## Vision Support
+
+### Basic Image Analysis
+
+```go
+// Using image URL
+urlRequest := groq.CreateVisionRequest(
+    groq.ModelLlama32_90bVision,
+    "https://example.com/image.jpg",
+    "What's in this image?",
+)
+
+resp, err := client.CreateChatCompletion(context.Background(), urlRequest)
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("Analysis: %s\n", resp.Choices[0].Message.Content)
+```
+
+### Local Image Processing
+
+```go
+// Open local image
+file, err := os.Open("image.jpg")
+if err != nil {
+    log.Fatal(err)
+}
+defer file.Close()
+
+// Convert to base64
+base64Image, err := groq.ImageToBase64(file)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Create request
+req := &groq.ChatCompletionRequest{
+    Model: groq.ModelLlama32_90bVision,
+    Messages: []groq.ChatMessage{
+        {
+            Role: "user",
+            Content: []groq.ContentType{
+                groq.NewTextContent("Describe this image in detail"),
+                groq.NewImageURLContent(base64Image),
+            },
+        },
+    },
+}
+
+resp, err := client.CreateChatCompletion(context.Background(), req)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+### Multi-turn Visual Conversations
+
+```go
+req := &groq.ChatCompletionRequest{
+    Model: groq.ModelLlama32_90bVision,
+    Messages: []groq.ChatMessage{
+        {
+            Role: "user",
+            Content: []groq.ContentType{
+                groq.NewTextContent("What's in this image?"),
+                groq.NewImageURLContent("https://example.com/image.jpg"),
+            },
+        },
+        {
+            Role: "assistant",
+            Content: "The image shows a cityscape...",
+        },
+        {
+            Role: "user",
+            Content: "What landmarks can you identify?",
+        },
+    },
+}
+```
+
+### Vision Features
+
+- **Multiple Input Methods**:
+  - URL-based image analysis
+  - Local file processing with base64 encoding
+  - Support for popular image formats
+
+- **Image Limitations**:
+  - URL images: Up to 20MB
+  - Base64 encoded: Up to 4MB
+  - Supported formats: JPEG, PNG, GIF, WebP
+
+- **Vision Models**:
+  ```go
+  // Available vision models
+  groq.ModelLlama32_90bVision  // 90B parameter model
+  groq.ModelLlama32_11bVision  // 11B parameter model
+  
+  // Get model capabilities
+  modelInfo := groq.ModelLlama32_90bVision.GetInfo()
+  ```
+
+- **Advanced Features**:
+  - Multi-turn visual conversations
+  - Visual question answering
+  - Detailed image analysis
+  - OCR capabilities
+
+### Best Practices
+
+```go
+// 1. Set appropriate timeouts for image processing
+client := groq.NewClient(
+    apiKey,
+    groq.WithTimeout(60*time.Second),
+)
+
+// 2. Validate image sizes
+if err := groq.ValidateImageURL(imageURL); err != nil {
+    log.Fatal(err)
+}
+
+// 3. Use appropriate models for your use case
+req.Model = groq.ModelLlama32_90bVision  // More capable
+// or
+req.Model = groq.ModelLlama32_11bVision  // Faster response
+
+// 4. Provide clear instructions
+content := []groq.ContentType{
+    groq.NewTextContent("Analyze this image and identify:
+        1. Main objects
+        2. Colors
+        3. Text if any
+    "),
+    groq.NewImageURLContent(imageURL),
+}
+```
 
 ## Available Models
 
