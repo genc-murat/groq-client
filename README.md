@@ -17,6 +17,9 @@ A high-performance Go client for the Groq API, featuring FastHTTP, semantic cach
 - 🔒 Type-safe model selection
 - 💾 Persistent cache storage
 - 📊 Detailed metrics and monitoring
+- 🎙️ Audio transcription and translation support
+- 🌐 Multi-language audio processing
+- 📝 Flexible response formats
 
 ## Installation
 
@@ -74,7 +77,9 @@ func main() {
 }
 ```
 
-## Streaming Example
+## Streaming Support
+
+Stream responses for real-time processing:
 
 ```go
 handler := func(chunk *groq.ChatCompletionChunk) error {
@@ -144,6 +149,74 @@ for _, resp := range responses {
 }
 ```
 
+## Audio Processing
+
+### Transcription
+
+Convert audio files to text in their original language:
+
+```go
+file, err := os.Open("audio.mp3")
+if err != nil {
+    log.Fatal(err)
+}
+defer file.Close()
+
+// Create transcription request
+req := &groq.TranscriptionRequest{
+    File:           file,
+    FileName:       "audio.mp3",
+    Model:          groq.ModelWhisperLargeV3,
+    Language:       "tr",            // Optional: specify language for better accuracy
+    ResponseFormat: "verbose_json",  // Options: "json", "text", "verbose_json"
+    Temperature:    0.3,             // Control output randomness
+    Prompt:        "Technology discussion in Turkish", // Optional context
+}
+
+// Send request
+resp, err := client.CreateTranscription(context.Background(), req)
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Printf("Transcription: %s\n", resp.Text)
+fmt.Printf("Request ID: %s\n", resp.XGroq.ID)
+```
+
+### Translation
+
+Translate audio directly to English:
+
+```go
+req := &groq.TranslationRequest{
+    File:           file,
+    FileName:       "foreign_speech.mp3",
+    Model:          groq.ModelWhisperLargeV3,
+    ResponseFormat: "json",
+    Temperature:    0.3,
+    Prompt:        "Business meeting discussion", // Optional context
+}
+
+resp, err := client.CreateTranslation(context.Background(), req)
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Printf("English Translation: %s\n", resp.Text)
+```
+
+### Supported Audio Formats
+
+- mp3
+- mp4
+- mpeg
+- mpga
+- m4a
+- wav
+- webm
+- ogg
+- flac
+
 ## Available Models
 
 The client provides type-safe model selection:
@@ -153,6 +226,7 @@ The client provides type-safe model selection:
 groq.ModelMixtral8x7b32768
 groq.ModelLlama33_70bVersatile
 groq.ModelGemma29bIt
+groq.ModelWhisperLargeV3
 // ... and more
 
 // Get model information
@@ -201,6 +275,48 @@ if err != nil {
     default:
         // Handle other errors
     }
+}
+```
+
+## Best Practices
+
+### Audio Processing
+```go
+// 1. Set appropriate timeouts for large files
+client := groq.NewClient(
+    apiKey,
+    groq.WithTimeout(5*time.Minute),
+)
+
+// 2. Use response formats based on needs
+req.ResponseFormat = "verbose_json"  // For detailed output
+// or
+req.ResponseFormat = "text"         // For simple text output
+
+// 3. Improve accuracy with language hints
+req.Language = "tr"  // For Turkish audio
+
+// 4. Use context prompts for better results
+req.Prompt = "Medical terminology discussion"
+```
+
+### Chat Completions
+```go
+// 1. Use appropriate temperature for your use case
+req.Temperature = 0.7  // More creative
+// or
+req.Temperature = 0.2  // More focused
+
+// 2. Implement proper context management
+messages := []groq.ChatMessage{
+    {Role: "system", Content: "You are a helpful assistant."},
+    {Role: "user", Content: "Hello!"},
+}
+
+// 3. Use streaming for long responses
+handler := func(chunk *groq.ChatCompletionChunk) error {
+    // Process chunk
+    return nil
 }
 ```
 
